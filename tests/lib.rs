@@ -17,8 +17,8 @@ fn test_hello() {
     let manifest = ManifestBuilder::new()
         .call_function(
             package_address,
-            "Hello",
-            "instantiate_hello",
+            "RadiswapV3",
+            "instantiate_radiswapv3",
             manifest_args!(),
         )
         .build();
@@ -31,7 +31,7 @@ fn test_hello() {
 
     // Test the `free_token` method.
     let manifest = ManifestBuilder::new()
-        .call_method(component, "free_token", manifest_args!())
+        .call_method(component, "mint", manifest_args!())
         .call_method(
             account_component,
             "deposit_batch",

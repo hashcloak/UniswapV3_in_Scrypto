@@ -2,9 +2,9 @@
 use scrypto::prelude::*;
 
 #[derive(ScryptoSbor)]
-struct slot0 {
+struct Slot0 {
     // the current price
-    sqrtPriceX96: u128,
+    sqrt_price_x96: u128,
     // the current tick
     tick: i32,
 }
@@ -21,7 +21,7 @@ struct PositionsInfo {
 }
 
 #[derive(ScryptoSbor)]
-struct tick {
+struct Tick {
     min_tick: i32,
     max_tick: i32,
 }
@@ -115,12 +115,26 @@ mod radiswapv3 {
         pub fn mint(
             &mut self,
             owner: ResourceAddress,
-            tickLower: i32,
-            tickUpper: i32,
+            tick_lower: i32,
+            tick_upper: i32,
             amount: u128,
-        ) /* -> (Decimal, Decimal)*/
-        {
-            if (tickLower >= tickUpper || tickLower < MIN_TICK || tickUpper > MAX_TICK) {
+            bucket_a: Bucket,
+            bucket_b: Bucket,
+        ) -> (Bucket, Bucket) {
+            let (mut bucket_a, mut bucket_b): (Bucket, Bucket) = if bucket_a.resource_address()
+                == self.token0.resource_address()
+                && bucket_b.resource_address() == self.token1.resource_address()
+            {
+                (bucket_a, bucket_b)
+            } else if bucket_a.resource_address() == self.token1.resource_address()
+                && bucket_b.resource_address() == self.token0.resource_address()
+            {
+                (bucket_b, bucket_a)
+            } else {
+                panic!("One of the tokens does not belong to the pool!")
+            };
+
+            if tick_lower >= tick_upper || tick_lower < MIN_TICK || tick_upper > MAX_TICK {
                 panic!("Invalid Ticks")
             }
 
@@ -128,29 +142,43 @@ mod radiswapv3 {
                 panic!("Zero Liquidity")
             }
 
-            self.update_ticks(tickLower, amount);
-            self.update_ticks(tickUpper, amount);
+            self.update_ticks(tick_lower, amount);
+            self.update_ticks(tick_upper, amount);
 
-            self.update_position(owner, tickLower, tickUpper, amount);
+            self.update_position(owner, tick_lower, tick_upper, amount);
 
             let amount0: Decimal = dec!("0.998976618347425280"); // TODO: replace with calculation
             let amount1: Decimal = dec!(5000); // TODO: replace with calculation
 
             self.liquidity += amount;
 
-            let balance0Before: Decimal;
-            let balance1Before: Decimal;
-
-            //     if (amount0 > 0) balance0Before = balance0();
-            // if (amount1 > 0) balance1Before = balance1();
+            let balance0_before: Decimal;
+            let balance1_before: Decimal;
 
             if amount0 > dec!(0) {
-                balance0Before = self.token0.amount();
+                balance0_before = self.token0.amount();
+            } else {
+                balance0_before = dec!(0);
             }
 
             if amount1 > dec!(0) {
-                balance1Before = self.token1.amount();
+                balance1_before = self.token1.amount();
+            } else {
+                balance1_before = dec!(0);
             }
+
+            self.token0.put(bucket_a.take(amount0));
+            self.token1.put(bucket_b.take(amount1));
+
+            if amount0 > dec!(0) && balance0_before + amount0 > self.token0.amount() {
+                panic!("Insufficent Input Amount");
+            }
+
+            if amount1 > dec!(0) && balance1_before + amount1 > self.token1.amount() {
+                panic!("Insufficent Input Amount");
+            }
+
+            (bucket_a, bucket_b)
         }
 
         // Internal functions
@@ -216,12 +244,12 @@ mod radiswapv3 {
         fn update_position(
             &mut self,
             owner: ResourceAddress,
-            tickLower: i32,
-            tickUpper: i32,
+            tick_lower: i32,
+            tick_upper: i32,
             liquity_delta: u128,
         ) {
             // let packed_bytes = ethabi.encode(owner, tickLower, tickUpper);
-            let position = (owner, tickLower, tickUpper);
+            let position = (owner, tick_lower, tick_upper);
 
             let position_info;
 
