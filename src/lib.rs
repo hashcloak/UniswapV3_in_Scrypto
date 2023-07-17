@@ -49,6 +49,8 @@ mod radiswapv3 {
         ticks: KeyValueStore<i32, TicksInfo>,
         // positions info
         positions: HashMap<(ResourceAddress, i32, i32), PositionsInfo>,
+        // slot0
+        slot0: Slot0,
     }
 
     impl RadiswapV3 {
@@ -104,6 +106,10 @@ mod radiswapv3 {
                 fee: fee,
                 ticks: KeyValueStore::new(),
                 positions: HashMap::new(),
+                slot0: Slot0 {
+                    sqrt_price_x96: 0,
+                    tick: 0,
+                },
             }
             .instantiate()
             .globalize();
@@ -288,5 +294,28 @@ mod radiswapv3 {
         //     // In this case, a bucket containing 1 HelloToken is returned
         //     self.sample_vault.take(1)
         // }
+
+        pub fn swap(&mut self, mut input_tokens: Bucket) -> (Bucket, Bucket) {
+            let (input_tokens_vault, output_tokens_vault): (&mut Vault, &mut Vault) =
+                if input_tokens.resource_address() == self.token0.resource_address() {
+                    (&mut self.token0, &mut self.token1)
+                } else if input_tokens.resource_address() == self.token1.resource_address() {
+                    (&mut self.token1, &mut self.token0)
+                } else {
+                    panic!("The given input tokens do not belong to this liquidity pool")
+                };
+
+            let next_tick: i32 = 85184; // TODO: replace with calculation
+            let next_price: u128 = 5604469350942327889444743441197; // TODO: replace with calculation
+
+            let amount0: Decimal = -dec!("0.008396714242162444"); // TODO: replace with calculation
+            let amount1: Decimal = dec!(42); // TODO: replace with calculation
+
+            self.slot0.sqrt_price_x96 = next_price;
+            self.slot0.tick = next_tick;
+
+            input_tokens_vault.put(input_tokens.take(amount1));
+            (output_tokens_vault.take(-amount0), input_tokens)
+        }
     }
 }
