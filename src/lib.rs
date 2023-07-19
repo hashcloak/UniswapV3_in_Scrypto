@@ -1,6 +1,8 @@
 // use ethabi::*;
 use scrypto::prelude::*;
 
+mod bitmap;
+
 #[derive(ScryptoSbor)]
 struct Slot0 {
     // the current price
