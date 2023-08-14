@@ -4,15 +4,16 @@ use scrypto::prelude::*;
 #[blueprint]
 mod bitmap {
     struct TickBitmap {
-        tickBitmap: HashMap<i16, u128>,
+        tick_bitmap: HashMap<i16, u128>,
     }
 
     impl TickBitmap {
-        pub fn instantiate_bitmap() -> ComponentAddress {
+        pub fn instantiate_bitmap() -> Global<TickBitmap> {
             Self {
-                tickBitmap: HashMap::new(),
+                tick_bitmap: HashMap::new(),
             }
             .instantiate()
+            .prepare_to_globalize(OwnerRole::None)
             .globalize()
         }
 
@@ -22,30 +23,19 @@ mod bitmap {
             (word_pos, bit_pos)
         }
 
-        //     function flipTick(
-        //     mapping(int16 => uint256) storage self,
-        //     int24 tick,
-        //     int24 tickSpacing
-        // ) internal {
-        //     require(tick % tickSpacing == 0); // ensure that the tick is spaced
-        //     (int16 wordPos, uint8 bitPos) = position(tick / tickSpacing);
-        //     uint256 mask = 1 << bitPos;
-        //     self[wordPos] ^= mask;
-        // }
-
         fn flipTick(&mut self, tick: i32, tick_spacing: i32) {
             assert!((tick % tick_spacing) == 0);
             let (word_pos, bit_pos) = Self::position(tick / tick_spacing);
             let mask: u128 = 1 << bit_pos;
 
-            match self.tickBitmap.get_mut(&word_pos) {
+            match self.tick_bitmap.get_mut(&word_pos) {
                 Some(mut tick_bitmap) => {
                     let mut bitmap_value = *tick_bitmap ^ mask;
                     tick_bitmap = &mut bitmap_value;
                 }
 
                 None => {
-                    self.tickBitmap.insert(word_pos, mask);
+                    self.tick_bitmap.insert(word_pos, mask);
                 }
             }
         }
@@ -70,7 +60,7 @@ mod bitmap {
 
                 let masked: U256;
 
-                match self.tickBitmap.get(&word_pos) {
+                match self.tick_bitmap.get(&word_pos) {
                     Some(tick_bitmap) => {
                         masked = U256::from(*tick_bitmap) & mask;
                     }
@@ -95,7 +85,7 @@ mod bitmap {
                 // uint256 masked = self[wordPos] & mask;
                 let masked: U256;
 
-                match self.tickBitmap.get(&word_pos) {
+                match self.tick_bitmap.get(&word_pos) {
                     Some(tick_bitmap) => {
                         masked = U256::from(*tick_bitmap) & mask;
                     }
@@ -108,7 +98,6 @@ mod bitmap {
                 // if there are no initialized ticks to the left of the current tick, return leftmost in the word
                 initialized = masked != U256::from(0);
 
-                // overflow/underflow is possible, but prevented externally by limiting both tickSpacing and tick
                 next = if initialized {
                     (compressed + 1 + (Self::least_significant_bit(masked) - bit_pos) as i32)
                         * tick_spacing

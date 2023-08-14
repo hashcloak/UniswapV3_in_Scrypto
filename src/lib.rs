@@ -1,7 +1,7 @@
-// use ethabi::*;
 use scrypto::prelude::*;
 
-mod bitmap;
+// @to-do - by commenting out bitmap (below line) the code will build perfectly but using it giving error
+// mod bitmap;
 
 #[derive(ScryptoSbor)]
 struct Slot0 {
@@ -63,7 +63,7 @@ mod radiswapv3 {
             bucket_a: Bucket,
             bucket_b: Bucket,
             fee: Decimal,
-        ) -> (ComponentAddress, Bucket) {
+        ) -> (Global<RadiswapV3>, Bucket) {
             // Ensure that none of the buckets are empty and that an appropriate
             // fee is set.
             assert!(
@@ -77,29 +77,49 @@ mod radiswapv3 {
 
             // Create a badge which will be given the authority to mint the pool
             // unit tokens.
-            let pool_units_minter_badge: Bucket = ResourceBuilder::new_fungible()
+            let pool_units_minter_badge: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_NONE)
-                .metadata("name", "LP Token Mint Auth")
+                .metadata(metadata! {
+                    roles {
+                        metadata_setter => OWNER;
+                        metadata_setter_updater => rule!(deny_all);
+                        metadata_locker => rule!(allow_all);
+                        metadata_locker_updater => rule!(allow_all);
+                    },
+                    init {
+                        "name"  => "LP Token Mint Auth", updatable;
+                    }
+                })
                 .mint_initial_supply(1);
 
             // Create the pool units token along with the initial supply specified
             // by the user.
-            let pool_units: Bucket = ResourceBuilder::new_fungible()
+            let pool_units: Bucket = ResourceBuilder::new_fungible(OwnerRole::None)
                 .divisibility(DIVISIBILITY_MAXIMUM)
-                .metadata("name", "Pool Unit")
-                .metadata("symbol", "UNIT")
-                .mintable(
-                    rule!(require(pool_units_minter_badge.resource_address())),
-                    LOCKED,
-                )
-                .burnable(
-                    rule!(require(pool_units_minter_badge.resource_address())),
-                    LOCKED,
-                )
+                .metadata(metadata! {
+                    roles {
+                        metadata_setter => OWNER;
+                        metadata_setter_updater => rule!(deny_all);
+                        metadata_locker => rule!(allow_all);
+                        metadata_locker_updater => rule!(allow_all);
+                    },
+                    init {
+                        "name"  => "Pool Unit", updatable;
+                        "symbol" => "UNIT", updatable;
+                    }
+                })
+                .mint_roles(mint_roles! {
+                    minter => rule!(require(pool_units_minter_badge.resource_address()));
+                    minter_updater => rule!(deny_all);
+                })
+                .burn_roles(burn_roles! {
+                    burner => rule!(require(pool_units_minter_badge.resource_address()));
+                    burner_updater => rule!(deny_all);
+                })
                 .mint_initial_supply(100);
 
             // Create the Radiswap component and globalize it
-            let radiswap: ComponentAddress = Self {
+            let radiswap = Self {
                 token0: Vault::with_bucket(bucket_a),
                 token1: Vault::with_bucket(bucket_b),
                 pool_units_resource_address: pool_units.resource_address(),
@@ -114,6 +134,7 @@ mod radiswapv3 {
                 },
             }
             .instantiate()
+            .prepare_to_globalize(OwnerRole::None)
             .globalize();
 
             // Return the component address as well as the pool units tokens
@@ -277,7 +298,7 @@ mod radiswapv3 {
             let liquity_after: u128 = liquity_before + liquity_delta;
 
             match self.positions.get_mut(&position) {
-                Some(mut position_info_2) => {
+                Some(position_info_2) => {
                     position_info_2.liquidity = liquity_after;
                 }
                 None => {
