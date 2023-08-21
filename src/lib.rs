@@ -1,7 +1,7 @@
 use scrypto::prelude::*;
 
 // @to-do - by commenting out bitmap (below line) the code will build perfectly but using it giving error
-// mod bitmap;
+mod bitmap;
 
 #[derive(ScryptoSbor)]
 struct Slot0 {
