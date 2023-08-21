@@ -7,22 +7,24 @@ mod bitmap {
     }
 
     impl TickBitmap {
-        pub fn instantiate_bitmap() -> Global<TickBitmap> {
+        pub fn instantiate_bitmap() -> Owned<TickBitmap> {
+            // Simply instantiating the component (without globalizing it) makes its methods
+            // not callable from outside. In this case, it has to be owned by a particular component. Only that
+            // component will be able to call methods on it.
+
             Self {
                 tick_bitmap: HashMap::new(),
             }
             .instantiate()
-            .prepare_to_globalize(OwnerRole::None)
-            .globalize()
         }
 
-        fn position(tick: i32) -> (i16, u8) {
+        pub fn position(tick: i32) -> (i16, u8) {
             let word_pos = (tick >> 8) as i16;
             let bit_pos = (tick % 256) as u8;
             (word_pos, bit_pos)
         }
 
-        fn flipTick(&mut self, tick: i32, tick_spacing: i32) {
+        pub fn flip_tick(&mut self, tick: i32, tick_spacing: i32) {
             assert!((tick % tick_spacing) == 0);
             let (word_pos, bit_pos) = Self::position(tick / tick_spacing);
             let mask: u128 = 1 << bit_pos;
